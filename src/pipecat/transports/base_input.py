@@ -337,21 +337,14 @@ class BaseInputTransport(FrameProcessor):
 
             await self.broadcast_frame(UserStartedSpeakingFrame, emulated=emulated)
 
-            # Only push InterruptionFrame if:
-            # 1. No interruption config is set, OR
-            # 2. Interruption config is set but bot is not speaking
-            should_push_immediate_interruption = (
-                not self.interruption_strategies or not self._bot_speaking
-            )
-
-            # Make sure we notify about interruptions quickly out-of-band.
-            if should_push_immediate_interruption and self.interruptions_allowed:
+            # When interruption strategies are configured, always defer to the aggregator
+            # to make the interruption decision (regardless of bot speaking state).
+            # Otherwise, send immediate interruption if allowed.
+            if self.interruption_strategies:
+                logger.debug("Deferring interruption to aggregator (strategy configured)")
+                # Don't send immediate interruption - aggregator will call should_interrupt()
+            elif self.interruptions_allowed:
                 await self.push_interruption_task_frame_and_wait()
-            elif self.interruption_strategies and self._bot_speaking:
-                logger.debug(
-                    "User started speaking while bot is speaking with interruption config - "
-                    "deferring interruption to aggregator"
-                )
         elif vad_state == VADState.QUIET:
             logger.debug("User stopped speaking")
             self._user_speaking = False
